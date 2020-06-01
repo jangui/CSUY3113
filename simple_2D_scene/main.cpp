@@ -14,6 +14,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include <vector>
+
 SDL_Window* displayWindow;
 bool gameIsRunning = true;
 
@@ -23,6 +25,8 @@ glm::mat4 viewMatrix, modelMatrix, projectionMatrix;
 GLuint LoadTexture(const char* filePath);
 float getDeltaTime();
 
+// I guess we don't really need this class because we only have one useful method
+// Though I'm going to keep it in case the future maybe extending it comes in handy
 class Texture {
 public:
   Texture(const char *filePath);
@@ -52,11 +56,11 @@ protected:
 class Robot: public Object {
 public:
   Robot(float x, float y, float angle, GLuint textureID);
-  virtual void update(float deltaTime);
+  void update(float deltaTime);
 };
 
 
-Robot* Initialize() {
+void Initialize(vector<Object*> *objs) {
     SDL_Init(SDL_INIT_VIDEO);
     displayWindow = SDL_CreateWindow("Textured", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                      640, 480, SDL_WINDOW_OPENGL);
@@ -90,8 +94,8 @@ Robot* Initialize() {
     Texture robotTex("robot.png");
 
     //create objects
-    
     Robot *robot = new Robot(0.0f, 0.0f, 0.0f, robotTex.getTextureID());
+    objs.push_back(robot);
     return robot;
 }
 
@@ -104,9 +108,13 @@ void ProcessInput() {
     }
 }
 
-void Update(Robot *robot) {
+void Update(vector<Object*> objs) {
   float deltaTime = getDeltaTime();
-  robot->update(deltaTime);
+
+  //update each obj
+  for (int i = 0; i < objs.size(); i++) {
+    objs[i]->update(deltaTime);
+  }
   //modelMatrix = glm::mat4(1.0f);
   //modelMatrix = glm::rotate(modelMatrix, glm::radians(1.0f), glm::vec3(0.0f, 0.0f, 1.0f));
   //modelMatrix = glm::scale(modelMatrix, glm::vec3(001f, 0.99f, 1.0f));
@@ -115,7 +123,7 @@ void Update(Robot *robot) {
 
 }
 
-void Render(Robot *robot) {
+void Render(vector<Object*> *objs) {
     float vertices[] = { -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f };
     float textCoords[] = {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
 
@@ -127,7 +135,9 @@ void Render(Robot *robot) {
     glEnableVertexAttribArray(program.texCoordAttribute);
 
     //draw objects
-    robot->draw();
+    for (int i = 0; i < objs.size(); i++) {
+      objs[i]->draw();
+    }
 
     glDisableVertexAttribArray(program.positionAttribute);
     glDisableVertexAttribArray(program.texCoordAttribute);
@@ -135,20 +145,24 @@ void Render(Robot *robot) {
     SDL_GL_SwapWindow(displayWindow);
 }
 
-void Shutdown() {
+void Shutdown(vector<Object*> *objs) {
+    for (int i = 0; i < objs.size(); i++) {
+      free(objs[i]); objs[i] = NULL;
+    }
     SDL_Quit();
 }
 
 int main(int argc, char* argv[]) {
-    Robot *robot = Initialize();
+    vector<Object*> objs;
+    Initialize(&objs);
     
     while (gameIsRunning) {
         ProcessInput();
-        Update(robot);
-        Render(robot);
+        Update(&objs);
+        Render(&objs);
     }
     
-    Shutdown();
+    Shutdown(&objs);
     return 0;
 }
 
