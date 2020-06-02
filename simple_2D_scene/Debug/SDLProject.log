@@ -1,2 +1,6 @@
 ﻿  main.cpp
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\simple_2D_scene\main.cpp(147,21): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\simple_2D_scene\main.cpp(164,23): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\simple_2D_scene\main.cpp(175,23): warning C4018: '<': signed/unsigned mismatch
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\simple_2D_scene\main.cpp(273,16): warning C4305: '=': truncation from 'double' to 'float'
   SDLProject.vcxproj -> C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\simple_2D_scene\Debug\SDLProject.exe

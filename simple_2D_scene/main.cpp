@@ -39,28 +39,38 @@ private:
 
 class Object {
 public:
-  Object(float x, float y, float angle, GLuint textureID);
+  Object(float x, float y, GLuint textureID);
   virtual void update(float deltaTime) = 0;
   virtual void draw();
   float getX();
   float getY();
-  float getAngle();
 protected:
   float x;
   float y;
-  float angle;
   GLuint textureID;
   glm::mat4 modelMatrix;
 };
 
 class Robot: public Object {
 public:
-  Robot(float x, float y, float angle, GLuint textureID);
+  Robot(float x, float y, GLuint textureID);
   void update(float deltaTime);
+private:
+  float dir;
+  float dist;
+};
+
+class Meteor : public Object {
+public:
+  Meteor(float x, float y, GLuint textureID);
+  void update(float deltaTime);
+private:
+  float size;
+  float inc;
 };
 
 
-void Initialize(vector<Object*> *objs) {
+void Initialize(std::vector<Object*> *objs) {
     SDL_Init(SDL_INIT_VIDEO);
     displayWindow = SDL_CreateWindow("Textured", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                      640, 480, SDL_WINDOW_OPENGL);
@@ -92,11 +102,20 @@ void Initialize(vector<Object*> *objs) {
 
     //load texture ids
     Texture robotTex("robot.png");
+    Texture meteorTex("meteor.png");
+    Texture robot2Tex("robot2.png");
 
     //create objects
-    Robot *robot = new Robot(0.0f, 0.0f, 0.0f, robotTex.getTextureID());
-    objs.push_back(robot);
-    return robot;
+    Robot *robot = new Robot(-3.2f, -2.0f, robotTex.getTextureID());
+    objs->push_back(robot);
+    Robot *robot2 = new Robot(1.2f, 2.0f, robotTex.getTextureID());
+    objs->push_back(robot2);
+
+    Meteor *meteor = new Meteor(1.0f, -1.6f, meteorTex.getTextureID());
+    objs->push_back(meteor);
+    Meteor *meteor2 = new Meteor(-1.0f, 1.6f, meteorTex.getTextureID());
+    objs->push_back(meteor2);
+
 }
 
 void ProcessInput() {
@@ -108,22 +127,14 @@ void ProcessInput() {
     }
 }
 
-void Update(vector<Object*> objs) {
+void Update(std::vector<Object*> *objs) {
   float deltaTime = getDeltaTime();
-
-  //update each obj
-  for (int i = 0; i < objs.size(); i++) {
-    objs[i]->update(deltaTime);
+  for (int i = 0; i < objs->size(); i++) {
+    ((*objs)[i])->update(deltaTime);
   }
-  //modelMatrix = glm::mat4(1.0f);
-  //modelMatrix = glm::rotate(modelMatrix, glm::radians(1.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-  //modelMatrix = glm::scale(modelMatrix, glm::vec3(001f, 0.99f, 1.0f));
-  //modelMatrix = glm::translate(modelMatrix, glm::vec3(triangle->getX(), triangle->getY(), 0.0f));
-  //modelMatrix = glm::rotate(modelMatrix, glm::radians(triangle->getRotate()), glm::vec3(0.0f, 0.0f, 1.0f));
-
 }
 
-void Render(vector<Object*> *objs) {
+void Render(std::vector<Object*> *objs) {
     float vertices[] = { -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f };
     float textCoords[] = {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
 
@@ -135,8 +146,8 @@ void Render(vector<Object*> *objs) {
     glEnableVertexAttribArray(program.texCoordAttribute);
 
     //draw objects
-    for (int i = 0; i < objs.size(); i++) {
-      objs[i]->draw();
+    for (int i = 0; i < objs->size(); i++) {
+      ((*objs)[i])->draw();
     }
 
     glDisableVertexAttribArray(program.positionAttribute);
@@ -145,15 +156,15 @@ void Render(vector<Object*> *objs) {
     SDL_GL_SwapWindow(displayWindow);
 }
 
-void Shutdown(vector<Object*> *objs) {
-    for (int i = 0; i < objs.size(); i++) {
-      free(objs[i]); objs[i] = NULL;
+void Shutdown(std::vector<Object*> *objs) {
+    for (int i = 0; i < objs->size(); i++) {
+      free((*objs)[i]);
     }
     SDL_Quit();
 }
 
 int main(int argc, char* argv[]) {
-    vector<Object*> objs;
+    std::vector<Object*> objs;
     Initialize(&objs);
     
     while (gameIsRunning) {
@@ -174,8 +185,8 @@ float getDeltaTime() {
   return deltaTime;
 }
 
-Object::Object(float x, float y, float angle, GLuint textureID)
-       : x(x), y(y), angle(angle), textureID(textureID)
+Object::Object(float x, float y, GLuint textureID)
+       : x(x), y(y), textureID(textureID)
 {
   //set model matrix to initial x and y
   modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f));
@@ -189,14 +200,39 @@ void Object::draw() {
 
 float Object::getX() { return x; }
 float Object::getY() { return y; }
-float Object::getAngle() { return angle; }
 
-Robot::Robot(float x, float y, float angle, GLuint textureID)
-      : Object(x, y, angle, textureID) { }
+Robot::Robot(float x, float y, GLuint textureID)
+      : Object(x, y, textureID) { dir = 1.0f; dist = 0.0f; }
 
 void Robot::update(float deltaTime) {
-  x += 1.0f * deltaTime;
+  if (std::fabs(dist) > 1.0f) {
+    dir *= -1.0f;
+    dist = 0;
+  }
+  x += dir * deltaTime;
+  dist += dir * deltaTime;
+
   modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f));
+}
+
+Meteor::Meteor(float x, float y, GLuint textureID)
+      : Object(x, y, textureID) { float size = 2.0f; float inc = 0.0f; }
+
+void Meteor::update(float deltaTime) {
+  //modelMatrix = glm::mat4(1.0f);
+  float ang = 90 * deltaTime;
+  modelMatrix = glm::rotate(modelMatrix, glm::radians(ang), glm::vec3(0.0f, 0.0f, 1.0f));
+
+  if (inc > 0.5) {
+    size = -0.2; //rate of changing size
+    inc = 0.0f;
+  } else if (inc < -0.5f) {
+   size = 0.2f; 
+   inc = 0.0f;
+  }
+  inc += deltaTime * size;
+  float grow = 1.0f + deltaTime*size;
+  modelMatrix = glm::scale(modelMatrix, glm::vec3(grow, grow, 1.0f));
 }
 
 Texture::Texture(const char *filePath) {
