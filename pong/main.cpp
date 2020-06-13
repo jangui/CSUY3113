@@ -38,69 +38,84 @@ private:
 
 class Object {
 public:
-  Object(glm::vec3 player_pos, GLuint textureID);
+  Object(glm::vec3 position, GLuint textureID);
   virtual void update(float deltaTime) = 0;
   virtual void draw();
   float getX();
   float getY();
+  void setMoveX(float x);
+  void setMoveY(float y);
 protected:
   GLuint textureID;
   glm::mat4 modelMatrix;
-  glm::vec3 player_pos;
-  float player_speed;
+  glm::vec3 position;
+  glm::vec3 movement;
+  float speed;
 };
 
 class Player: public Object {
 public:
-  Player(glm::vec3 player_pos, GLuint textureID);
+  Player(glm::vec3 position, GLuint textureID);
   void update(float deltaTime);
 };
 
 void Initialize(std::vector<Object*> *objs) {
-    SDL_Init(SDL_INIT_VIDEO);
-    displayWindow = SDL_CreateWindow("Textured", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                     640, 480, SDL_WINDOW_OPENGL);
-    SDL_GLContext context = SDL_GL_CreateContext(displayWindow);
-    SDL_GL_MakeCurrent(displayWindow, context);
-    
+  SDL_Init(SDL_INIT_VIDEO);
+  displayWindow = SDL_CreateWindow("Textured", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                   640, 480, SDL_WINDOW_OPENGL);
+  SDL_GLContext context = SDL_GL_CreateContext(displayWindow);
+  SDL_GL_MakeCurrent(displayWindow, context);
+  
 #ifdef _WINDOWS
-    glewInit();
+  glewInit();
 #endif
-    
-    glViewport(0, 0, 640, 480);
-    
-    program.Load("shaders/vertex_textured.glsl", "shaders/fragment_textured.glsl");
-    
-    viewMatrix = glm::mat4(1.0f);
-    modelMatrix = glm::mat4(1.0f);
-    projectionMatrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
-    
-    program.SetProjectionMatrix(projectionMatrix);
-    program.SetViewMatrix(viewMatrix);
-    
-    glUseProgram(program.programID);
-    
-    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+  
+  glViewport(0, 0, 640, 480);
+  
+  program.Load("shaders/vertex_textured.glsl", "shaders/fragment_textured.glsl");
+  
+  viewMatrix = glm::mat4(1.0f);
+  modelMatrix = glm::mat4(1.0f);
+  projectionMatrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
+  
+  program.SetProjectionMatrix(projectionMatrix);
+  program.SetViewMatrix(viewMatrix);
+  
+  glUseProgram(program.programID);
+  
+  glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
-    //enable blending and set transparency settings
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); //we can try nearest neighbord instead
+  //enable blending and set transparency settings
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); //we can try nearest neighbord instead
 
-    //load texture ids
-    Texture playerTex("player.png");
+  //load texture ids
+  Texture playerTex("player.png");
 
-    //create objects
-    Player *p1 = new Player(glm::vec3(-4.5f, -2.0f, 0.0f), playerTex.getTextureID());
-    objs->push_back(p1);
+  //create objects
+  Player *p1 = new Player(glm::vec3(-4.5f, -2.0f, 0.0f), playerTex.getTextureID());
+  objs->push_back(p1);
 }
 
-void ProcessInput() {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT || event.type == SDL_WINDOWEVENT_CLOSE) {
-            gameIsRunning = false;
-        }
+void ProcessInput(std::vector<Object*> *objs) {
+  //proccess event
+  SDL_Event event;
+  while (SDL_PollEvent(&event)) {
+    switch (event.type) {
+      case(SDL_QUIT):
+      case(SDL_WINDOWEVENT_CLOSE):
+        gameIsRunning = false;
+        break;
     }
+  }
+  //check for keys being held down
+  const Uint8 *keys = SDL_GetKeyboardState(NULL);
+  if(keys[SDL_SCANCODE_UP]) {
+    (*objs)[0]->setMoveY(1.0f);
+  } else if(keys[SDL_SCANCODE_DOWN]) {
+    (*objs)[0]->setMoveY(-1.0f);
+  }
+
 }
 
 void Update(std::vector<Object*> *objs) {
@@ -111,46 +126,46 @@ void Update(std::vector<Object*> *objs) {
 }
 
 void Render(std::vector<Object*> *objs) {
-    float vertices[] = { -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f };
-    float textCoords[] = {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
+  float vertices[] = { -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f };
+  float textCoords[] = {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
 
-    glClear(GL_COLOR_BUFFER_BIT);
+  glClear(GL_COLOR_BUFFER_BIT);
 
-    glVertexAttribPointer(program.positionAttribute, 2, GL_FLOAT, false, 0, vertices);
-    glEnableVertexAttribArray(program.positionAttribute);
-    glVertexAttribPointer(program.texCoordAttribute, 2, GL_FLOAT, false, 0, textCoords);
-    glEnableVertexAttribArray(program.texCoordAttribute);
+  glVertexAttribPointer(program.positionAttribute, 2, GL_FLOAT, false, 0, vertices);
+  glEnableVertexAttribArray(program.positionAttribute);
+  glVertexAttribPointer(program.texCoordAttribute, 2, GL_FLOAT, false, 0, textCoords);
+  glEnableVertexAttribArray(program.texCoordAttribute);
 
-    //draw objects
-    for (size_t i = 0; i < objs->size(); i++) {
-      ((*objs)[i])->draw();
-    }
+  //draw objects
+  for (size_t i = 0; i < objs->size(); i++) {
+    ((*objs)[i])->draw();
+  }
 
-    glDisableVertexAttribArray(program.positionAttribute);
-    glDisableVertexAttribArray(program.texCoordAttribute);
-    
-    SDL_GL_SwapWindow(displayWindow);
+  glDisableVertexAttribArray(program.positionAttribute);
+  glDisableVertexAttribArray(program.texCoordAttribute);
+  
+  SDL_GL_SwapWindow(displayWindow);
 }
 
 void Shutdown(std::vector<Object*> *objs) {
-    for (size_t i = 0; i < objs->size(); i++) {
-      free((*objs)[i]);
-    }
-    SDL_Quit();
+  for (size_t i = 0; i < objs->size(); i++) {
+    free((*objs)[i]);
+  }
+  SDL_Quit();
 }
 
 int main(int argc, char* argv[]) {
-    std::vector<Object*> objs;
-    Initialize(&objs);
-    
-    while (gameIsRunning) {
-        ProcessInput();
-        Update(&objs);
-        Render(&objs);
-    }
-    
-    Shutdown(&objs);
-    return 0;
+  std::vector<Object*> objs;
+  Initialize(&objs);
+  
+  while (gameIsRunning) {
+      ProcessInput(&objs);
+      Update(&objs);
+      Render(&objs);
+  }
+  
+  Shutdown(&objs);
+  return 0;
 }
 
 float getDeltaTime() {
@@ -161,11 +176,14 @@ float getDeltaTime() {
   return deltaTime;
 }
 
-Object::Object(glm::vec3 player_pos, GLuint textureID)
-       : player_pos(player_pos), textureID(textureID)
+Object::Object(glm::vec3 position, GLuint textureID)
+       : position(position), textureID(textureID)
 {
-  //set model matrix to initial x and y
-  modelMatrix = glm::translate(glm::mat4(1.0f), player_pos);
+  //set model matrix to initial position
+  modelMatrix = glm::translate(glm::mat4(1.0f), position);
+
+  //init movement vector to 0
+  movement = glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
 void Object::draw() {
@@ -174,23 +192,26 @@ void Object::draw() {
   glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-float Object::getX() { return player_pos.x; }
-float Object::getY() { return player_pos.y; }
+float Object::getX() { return position.x; }
+float Object::getY() { return position.y; }
 
-Player::Player(glm::vec3 player_pos, GLuint textureID)
-      : Object(player_pos, textureID) { }
+void Object::setMoveX(float x) { movement.x = x; }
+void Object::setMoveY(float y) { movement.y = y; }
+
+Player::Player(glm::vec3 position, GLuint textureID)
+      : Object(position, textureID) { speed = 5.0f; }
 
 void Player::update(float deltaTime) {
-  /*
-  if (std::fabs(dist) > 1.0f) {
-    dir *= -1.0f;
-    dist = 0;
+  //normalize movement vector
+  if (glm::length(movement) > 1.0f) {
+    movement = glm::normalize(movement);
   }
-  x += dir * deltaTime;
-  dist += dir * deltaTime;
-  */
 
-  modelMatrix = glm::translate(glm::mat4(1.0f), player_pos);
+  position += movement * speed * deltaTime;
+  modelMatrix = glm::translate(glm::mat4(1.0f), position);
+
+  //reset player_movement
+  movement = glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
 Texture::Texture(const char *filePath) {
