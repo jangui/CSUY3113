@@ -18,6 +18,8 @@
 
 SDL_Window* displayWindow;
 bool gameIsRunning = true;
+const float ORTHO_WIDTH = 5.0f;
+const float ORTHO_HEIGHT = 3.75f;
 
 ShaderProgram program;
 glm::mat4 viewMatrix, modelMatrix, projectionMatrix;
@@ -57,11 +59,12 @@ class Player: public Object {
 public:
   Player(glm::vec3 position, GLuint textureID);
   void update(float deltaTime);
+  void checkCollisions(glm::vec3 *new_pos);
 };
 
 void Initialize(std::vector<Object*> *objs) {
   SDL_Init(SDL_INIT_VIDEO);
-  displayWindow = SDL_CreateWindow("Textured", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+  displayWindow = SDL_CreateWindow("Pong", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                    640, 480, SDL_WINDOW_OPENGL);
   SDL_GLContext context = SDL_GL_CreateContext(displayWindow);
   SDL_GL_MakeCurrent(displayWindow, context);
@@ -76,7 +79,7 @@ void Initialize(std::vector<Object*> *objs) {
   
   viewMatrix = glm::mat4(1.0f);
   modelMatrix = glm::mat4(1.0f);
-  projectionMatrix = glm::ortho(-5.0f, 5.0f, -3.75f, 3.75f, -1.0f, 1.0f);
+  projectionMatrix = glm::ortho(-ORTHO_WIDTH, ORTHO_WIDTH, -ORTHO_HEIGHT, ORTHO_HEIGHT, -1.0f, 1.0f);
   
   program.SetProjectionMatrix(projectionMatrix);
   program.SetViewMatrix(viewMatrix);
@@ -93,8 +96,11 @@ void Initialize(std::vector<Object*> *objs) {
   Texture playerTex("player.png");
 
   //create objects
-  Player *p1 = new Player(glm::vec3(-4.5f, -2.0f, 0.0f), playerTex.getTextureID());
+  Player *p1 = new Player(glm::vec3(-4.5f, 0.0f, 0.0f), playerTex.getTextureID());
   objs->push_back(p1);
+
+  Player *p2 = new Player(glm::vec3(4.5f, 0.0f, 0.0f), playerTex.getTextureID());
+  objs->push_back(p2);
 }
 
 void ProcessInput(std::vector<Object*> *objs) {
@@ -110,10 +116,17 @@ void ProcessInput(std::vector<Object*> *objs) {
   }
   //check for keys being held down
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
-  if(keys[SDL_SCANCODE_UP]) {
+  //move p1
+  if(keys[SDL_SCANCODE_W]) {
     (*objs)[0]->setMoveY(1.0f);
-  } else if(keys[SDL_SCANCODE_DOWN]) {
+  } else if(keys[SDL_SCANCODE_S]) {
     (*objs)[0]->setMoveY(-1.0f);
+  }
+  //move p2
+  if(keys[SDL_SCANCODE_UP]) {
+    (*objs)[1]->setMoveY(1.0f);
+  } else if(keys[SDL_SCANCODE_DOWN]) {
+    (*objs)[1]->setMoveY(-1.0f);
   }
 
 }
@@ -198,6 +211,7 @@ float Object::getY() { return position.y; }
 void Object::setMoveX(float x) { movement.x = x; }
 void Object::setMoveY(float y) { movement.y = y; }
 
+
 Player::Player(glm::vec3 position, GLuint textureID)
       : Object(position, textureID) { speed = 5.0f; }
 
@@ -206,12 +220,19 @@ void Player::update(float deltaTime) {
   if (glm::length(movement) > 1.0f) {
     movement = glm::normalize(movement);
   }
+  glm::vec3 new_pos = position + (movement * speed * deltaTime);
+  checkCollisions(&new_pos);
 
-  position += movement * speed * deltaTime;
+  position = new_pos;
   modelMatrix = glm::translate(glm::mat4(1.0f), position);
 
   //reset player_movement
   movement = glm::vec3(0.0f, 0.0f, 0.0f);
+}
+
+void Player::checkCollisions(glm::vec3 *new_pos) {
+  if ( (*new_pos).y > ORTHO_HEIGHT) { (*new_pos).y = ORTHO_HEIGHT; }
+  else if ( (*new_pos).y < -ORTHO_HEIGHT) { (*new_pos).y = -ORTHO_HEIGHT; }
 }
 
 Texture::Texture(const char *filePath) {
