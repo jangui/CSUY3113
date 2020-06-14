@@ -62,6 +62,16 @@ public:
   void checkCollisions(glm::vec3 *new_pos);
 };
 
+class Ball: public Object {
+public:
+  Ball(glm::vec3 position, GLuint textureID);
+  void update(float deltaTime);
+  void checkCollisions(std::vector<Object*> *objs);
+  void start();
+private:
+  bool moving;
+};
+
 void Initialize(std::vector<Object*> *objs) {
   SDL_Init(SDL_INIT_VIDEO);
   displayWindow = SDL_CreateWindow("Pong", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -94,6 +104,7 @@ void Initialize(std::vector<Object*> *objs) {
 
   //load texture ids
   Texture playerTex("player.png");
+  Texture ballTex("ball.png");
 
   //create objects
   Player *p1 = new Player(glm::vec3(-4.5f, 0.0f, 0.0f), playerTex.getTextureID());
@@ -101,6 +112,9 @@ void Initialize(std::vector<Object*> *objs) {
 
   Player *p2 = new Player(glm::vec3(4.5f, 0.0f, 0.0f), playerTex.getTextureID());
   objs->push_back(p2);
+  
+  Ball *ball = new Ball(glm::vec3(0.0f, 0.0f, 0.0f), ballTex.getTextureID());
+  objs->push_back(ball);
 }
 
 void ProcessInput(std::vector<Object*> *objs) {
@@ -111,6 +125,15 @@ void ProcessInput(std::vector<Object*> *objs) {
       case(SDL_QUIT):
       case(SDL_WINDOWEVENT_CLOSE):
         gameIsRunning = false;
+        break;
+      case(SDL_KEYDOWN):
+        //key was pressed, which one?
+        switch(event.key.keysym.sym) {
+          case SDLK_SPACE:
+            //start ball when space pressed
+            Ball *ball = static_cast<Ball*>((*objs)[2]);
+            ball->start();
+        }
         break;
     }
   }
@@ -233,6 +256,36 @@ void Player::update(float deltaTime) {
 void Player::checkCollisions(glm::vec3 *new_pos) {
   if ( (*new_pos).y > ORTHO_HEIGHT) { (*new_pos).y = ORTHO_HEIGHT; }
   else if ( (*new_pos).y < -ORTHO_HEIGHT) { (*new_pos).y = -ORTHO_HEIGHT; }
+}
+
+Ball::Ball(glm::vec3 position, GLuint textureID) : Object(position, textureID) {
+  moving = false;
+  speed = 7.0f;
+}
+
+void Ball::update(float deltaTime) {
+  if (moving == false) { return; }
+  if (glm::length(movement) > 1.0f) {
+    movement = glm::normalize(movement);
+  }
+  glm::vec3 new_pos = position + (movement * speed * deltaTime);
+  //checkCollisions(&new_pos);
+
+  position = new_pos;
+  modelMatrix = glm::translate(glm::mat4(1.0f), position);
+
+  //reset player_movement
+  movement = glm::vec3(1.0f, 0.0f, 0.0f);
+
+}
+
+void Ball::checkCollisions(std::vector<Object*> *objs) {
+  return;
+}
+
+void Ball::start() {
+  moving = true;
+  movement = glm::vec3(1.0f, 0.0f, 0.0f);
 }
 
 Texture::Texture(const char *filePath) {
