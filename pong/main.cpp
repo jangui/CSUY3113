@@ -24,7 +24,6 @@ const float ORTHO_HEIGHT = 3.75f;
 ShaderProgram program;
 glm::mat4 viewMatrix, modelMatrix, projectionMatrix;
 
-float getDeltaTime();
 
 // I guess we don't really need this class because we only have one useful method
 // Though I'm going to keep it in case the future maybe extending it comes in handy
@@ -45,6 +44,8 @@ public:
   virtual void draw();
   float getX();
   float getY();
+  float getW();
+  float getH();
   void setMoveX(float x);
   void setMoveY(float y);
 protected:
@@ -53,6 +54,8 @@ protected:
   glm::vec3 position;
   glm::vec3 movement;
   float speed;
+  float width;
+  float height;
 };
 
 class Player: public Object {
@@ -66,13 +69,18 @@ class Ball: public Object {
 public:
   Ball(glm::vec3 position, GLuint textureID);
   void update(float deltaTime);
-  void checkCollisions(std::vector<Object*> *objs);
+  void checkCollisions(glm::vec3 *new_pos);
   void start();
 private:
   bool moving;
 };
 
-void Initialize(std::vector<Object*> *objs) {
+std::vector<Object*> objs;
+
+float getDeltaTime();
+bool isColliding(glm::vec3 *new_pos, float width, float height, Object *obj);
+
+void Initialize() {
   SDL_Init(SDL_INIT_VIDEO);
   displayWindow = SDL_CreateWindow("Pong", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                    640, 480, SDL_WINDOW_OPENGL);
@@ -108,16 +116,16 @@ void Initialize(std::vector<Object*> *objs) {
 
   //create objects
   Player *p1 = new Player(glm::vec3(-4.5f, 0.0f, 0.0f), playerTex.getTextureID());
-  objs->push_back(p1);
+  objs.push_back(p1);
 
   Player *p2 = new Player(glm::vec3(4.5f, 0.0f, 0.0f), playerTex.getTextureID());
-  objs->push_back(p2);
+  objs.push_back(p2);
   
   Ball *ball = new Ball(glm::vec3(0.0f, 0.0f, 0.0f), ballTex.getTextureID());
-  objs->push_back(ball);
+  objs.push_back(ball);
 }
 
-void ProcessInput(std::vector<Object*> *objs) {
+void ProcessInput() {
   //proccess event
   SDL_Event event;
   while (SDL_PollEvent(&event)) {
@@ -131,7 +139,7 @@ void ProcessInput(std::vector<Object*> *objs) {
         switch(event.key.keysym.sym) {
           case SDLK_SPACE:
             //start ball when space pressed
-            Ball *ball = static_cast<Ball*>((*objs)[2]);
+            Ball *ball = static_cast<Ball*>(objs[2]);
             ball->start();
         }
         break;
@@ -141,27 +149,27 @@ void ProcessInput(std::vector<Object*> *objs) {
   const Uint8 *keys = SDL_GetKeyboardState(NULL);
   //move p1
   if(keys[SDL_SCANCODE_W]) {
-    (*objs)[0]->setMoveY(1.0f);
+    objs[0]->setMoveY(1.0f);
   } else if(keys[SDL_SCANCODE_S]) {
-    (*objs)[0]->setMoveY(-1.0f);
+    objs[0]->setMoveY(-1.0f);
   }
   //move p2
   if(keys[SDL_SCANCODE_UP]) {
-    (*objs)[1]->setMoveY(1.0f);
+    objs[1]->setMoveY(1.0f);
   } else if(keys[SDL_SCANCODE_DOWN]) {
-    (*objs)[1]->setMoveY(-1.0f);
+    objs[1]->setMoveY(-1.0f);
   }
 
 }
 
-void Update(std::vector<Object*> *objs) {
+void Update() {
   float deltaTime = getDeltaTime();
-  for (size_t i = 0; i < objs->size(); i++) {
-    ((*objs)[i])->update(deltaTime);
+  for (size_t i = 0; i < objs.size(); i++) {
+    objs[i]->update(deltaTime);
   }
 }
 
-void Render(std::vector<Object*> *objs) {
+void Render() {
   float vertices[] = { -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f };
   float textCoords[] = {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
 
@@ -173,8 +181,8 @@ void Render(std::vector<Object*> *objs) {
   glEnableVertexAttribArray(program.texCoordAttribute);
 
   //draw objects
-  for (size_t i = 0; i < objs->size(); i++) {
-    ((*objs)[i])->draw();
+  for (size_t i = 0; i < objs.size(); i++) {
+    objs[i]->draw();
   }
 
   glDisableVertexAttribArray(program.positionAttribute);
@@ -183,24 +191,23 @@ void Render(std::vector<Object*> *objs) {
   SDL_GL_SwapWindow(displayWindow);
 }
 
-void Shutdown(std::vector<Object*> *objs) {
-  for (size_t i = 0; i < objs->size(); i++) {
-    free((*objs)[i]);
+void Shutdown() {
+  for (size_t i = 0; i < objs.size(); i++) {
+    free(objs[i]);
   }
   SDL_Quit();
 }
 
 int main(int argc, char* argv[]) {
-  std::vector<Object*> objs;
-  Initialize(&objs);
+  Initialize();
   
   while (gameIsRunning) {
-      ProcessInput(&objs);
-      Update(&objs);
-      Render(&objs);
+      ProcessInput();
+      Update();
+      Render();
   }
   
-  Shutdown(&objs);
+  Shutdown();
   return 0;
 }
 
@@ -230,13 +237,15 @@ void Object::draw() {
 
 float Object::getX() { return position.x; }
 float Object::getY() { return position.y; }
+float Object::getW() { return width; }
+float Object::getH() { return height; }
 
 void Object::setMoveX(float x) { movement.x = x; }
 void Object::setMoveY(float y) { movement.y = y; }
 
 
 Player::Player(glm::vec3 position, GLuint textureID)
-      : Object(position, textureID) { speed = 5.0f; }
+      : Object(position, textureID) { speed = 5.0f; width = 0.25f; height = 0.9f; }
 
 void Player::update(float deltaTime) {
   //normalize movement vector
@@ -254,13 +263,15 @@ void Player::update(float deltaTime) {
 }
 
 void Player::checkCollisions(glm::vec3 *new_pos) {
-  if ( (*new_pos).y > ORTHO_HEIGHT) { (*new_pos).y = ORTHO_HEIGHT; }
-  else if ( (*new_pos).y < -ORTHO_HEIGHT) { (*new_pos).y = -ORTHO_HEIGHT; }
+  float cutoff = ORTHO_HEIGHT - (height / 2);
+  if ( (*new_pos).y > cutoff) { (*new_pos).y = cutoff; }
+  else if ( (*new_pos).y < -cutoff) { (*new_pos).y = -cutoff; }
 }
 
 Ball::Ball(glm::vec3 position, GLuint textureID) : Object(position, textureID) {
   moving = false;
   speed = 7.0f;
+  height = width = 0.2f;
 }
 
 void Ball::update(float deltaTime) {
@@ -269,23 +280,40 @@ void Ball::update(float deltaTime) {
     movement = glm::normalize(movement);
   }
   glm::vec3 new_pos = position + (movement * speed * deltaTime);
-  //checkCollisions(&new_pos);
+  checkCollisions(&new_pos);
 
   position = new_pos;
   modelMatrix = glm::translate(glm::mat4(1.0f), position);
 
-  //reset player_movement
-  movement = glm::vec3(1.0f, 0.0f, 0.0f);
-
 }
 
-void Ball::checkCollisions(std::vector<Object*> *objs) {
-  return;
+void Ball::checkCollisions(glm::vec3 *new_pos) {
+  //check if hits top or bottom
+  float cutoff = ORTHO_HEIGHT - (height / 2);
+  if ( (*new_pos).y > cutoff) { (*new_pos).y = cutoff; movement.y = -movement.y; }
+  else if ( (*new_pos).y < -cutoff) { (*new_pos).y = -cutoff; movement.y = -movement.y; }
+
+  //check if hits player
+  if (isColliding(new_pos, width, height, objs[0])) {
+    movement.x = -movement.x;
+  } else if (isColliding(new_pos, width, height, objs[1])) {
+    movement.x = -movement.x;
+  }
+
+  //check if hits wall
+  cutoff = ORTHO_WIDTH - (width / 2);
+  if ((*new_pos).x > cutoff) {
+    (*new_pos).x = cutoff;
+    gameIsRunning = false;
+  } else if ((*new_pos).x < -cutoff) {
+    (*new_pos).x = -cutoff;
+    gameIsRunning = false;
+  }
 }
 
 void Ball::start() {
   moving = true;
-  movement = glm::vec3(1.0f, 0.0f, 0.0f);
+  movement = glm::vec3(1.0f, 0.2f, 0.0f);
 }
 
 Texture::Texture(const char *filePath) {
@@ -324,3 +352,9 @@ GLuint Texture::loadTexture(const char* filePath) {
 
 GLuint Texture::getTextureID() { return textureID; }
 
+bool isColliding(glm::vec3 *new_pos, float width, float height, Object *obj) {
+  float xdist = std::fabs((*new_pos).x - obj->getX()) - ((width + obj->getW()) / 2.0f);
+  float ydist = std::fabs((*new_pos).y - obj->getY()) - ((height + obj->getH()) / 2.0f);
+  if (xdist < 0 && ydist < 0) { return true; }
+  return false;
+}
