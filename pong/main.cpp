@@ -295,9 +295,9 @@ void Ball::checkCollisions(glm::vec3 *new_pos) {
 
   //check if hits player
   if (isColliding(new_pos, width, height, objs[0])) {
-    movement.x = -movement.x;
+    movement.x = 1.0f;
   } else if (isColliding(new_pos, width, height, objs[1])) {
-    movement.x = -movement.x;
+    movement.x = -1.0f;
   }
 
   //check if hits wall
