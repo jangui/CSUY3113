@@ -4,3 +4,5 @@ C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\simple_2D_scene\Debug\SDLProjec
 C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\simple_2D_scene\Debug\SDLProject.pdb
 C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\pong\Debug\SDLProject.exe
 C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\pong\Debug\SDLProject.pdb
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\lunar_lander\Debug\SDLProject.exe
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\lunar_lander\Debug\SDLProject.pdb

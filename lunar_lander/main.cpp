@@ -14,7 +14,21 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include "Entity.h"
+
+#define PLATFORM_COUNT 26
+
 #include <vector>
+
+enum GameMode { PLAYING, WIN, LOSE };
+GameMode mode = PLAYING;
+
+struct GameState {
+    Entity *player;
+    Entity *platforms;
+};
+
+GameState state;
 
 SDL_Window* displayWindow;
 bool gameIsRunning = true;
@@ -22,68 +36,77 @@ bool gameIsRunning = true;
 ShaderProgram program;
 glm::mat4 viewMatrix, modelMatrix, projectionMatrix;
 
-GLuint LoadTexture(const char* filePath);
-float getDeltaTime();
-
-// I guess we don't really need this class because we only have one useful method
-// Though I'm going to keep it in case the future maybe extending it comes in handy
-class Texture {
-public:
-  Texture(const char *filePath);
-  GLuint LoadTexture(const char* filePath);
-  GLuint getTextureID();
-private:
+GLuint LoadTexture(const char* filePath) {
+  int w, h, n;
+  unsigned char* image = stbi_load(filePath, &w, &h, &n, STBI_rgb_alpha);
+  
+  if (image == NULL) {
+    std::cout << "Unable to load image. Make sure the path is correct\n";
+    assert(false);
+  }
+  
   GLuint textureID;
-};
+  glGenTextures(1, &textureID);
+  glBindTexture(GL_TEXTURE_2D, textureID);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
+  
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  
+  stbi_image_free(image);
+  return textureID;
+}
 
+GLuint SHIP_TEXTURES[3];
+GLuint *fontTexID;
 
-class Object {
-public:
-  Object(float x, float y, GLuint textureID);
-  virtual void update(float deltaTime) = 0;
-  virtual void draw();
-  float getX();
-  float getY();
-protected:
-  float x;
-  float y;
-  GLuint textureID;
-  glm::mat4 modelMatrix;
-};
+void DrawText(ShaderProgram *program, GLuint fontTextureID, std::string text,
+              float size, float spacing, glm::vec3 position)
+{
+  float width = 1.0f / 16.0f;
+  float height = 1.0f / 16.0f;
 
-class Robot: public Object {
-public:
-  Robot(float x, float y, GLuint textureID);
-  void update(float deltaTime);
-private:
-  float dir;
-  float dist;
-};
+  std::vector<float> vertices;
+  std::vector<float> texCoords;
 
-class Meteor : public Object {
-public:
-  Meteor(float x, float y, GLuint textureID);
-  void update(float deltaTime);
-private:
-  float size;
-  float inc;
-};
+  for(size_t i = 0; i < text.size(); i++) {
+    int index = (int)text[i];
 
-SDL_Joystick *playOneController;
+    float offset = (size + spacing) * i;
 
-void Initialize(std::vector<Object*> *objs) {
-  //init video and game controller
-  SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK);
+    float u = (float)(index % 16) / 16.0f;
+    float v = (float)(index / 16) / 16.0f;
 
-  //get num of controllers
-  //SDL_NumJoySticks()
+     vertices.insert(vertices.end(), {
+         offset + (-0.5f * size), 0.5f * size,
+         offset + (-0.5f * size), -0.5f * size,
+         offset + (0.5f * size), 0.5f * size,
+         offset + (0.5f * size), -0.5f * size,
+         offset + (0.5f * size), 0.5f * size,
+         offset + (-0.5f * size), -0.5f * size,
+     });
 
-  //open 1st controller found. null on error
-  playerOneController = SDL_JoystickOpen(0);
+     texCoords.insert(texCoords.end(), {u, v, u, v + height,u + width, v, u + width, v + height, u + width,
+                      v, u, v + height
+                      });
+  }
+  glm::mat4 modelMatrix = glm::mat4(1.0f);
+  modelMatrix = glm::translate(modelMatrix, position);
+  program->SetModelMatrix(modelMatrix);
+  glUseProgram(program->programID);
+  glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertices.data());
+  glEnableVertexAttribArray(program->positionAttribute);
+  glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoords.data());
+  glEnableVertexAttribArray(program->texCoordAttribute);
+  glBindTexture(GL_TEXTURE_2D, fontTextureID);
+  glDrawArrays(GL_TRIANGLES, 0, (int)(text.size() * 6));
+  glDisableVertexAttribArray(program->positionAttribute);
+  glDisableVertexAttribArray(program->texCoordAttribute);
+}
 
-  //setup display window
-  displayWindow = SDL_CreateWindow("Textured", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                   640, 480, SDL_WINDOW_OPENGL);
+void Initialize() {
+  SDL_Init(SDL_INIT_VIDEO);
+  displayWindow = SDL_CreateWindow("Lunar Lander", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, SDL_WINDOW_OPENGL);
   SDL_GLContext context = SDL_GL_CreateContext(displayWindow);
   SDL_GL_MakeCurrent(displayWindow, context);
   
@@ -105,228 +128,293 @@ void Initialize(std::vector<Object*> *objs) {
   glUseProgram(program.programID);
   
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-
-  //enable blending and set transparency settings
   glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); //we can try nearest neighbord instead
 
-  //load texture ids
-  Texture robotTex("robot.png");
-  Texture meteorTex("meteor.png");
-  Texture robot2Tex("robot2.png");
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  
+ 
+  // Initialize Game Objects
+  
+  // Initialize Player
+  state.player = new Entity();
+  state.player->position = glm::vec3(0.0f, 5.0f, 0.0f);
+  state.player->movement = glm::vec3(0);
+  state.player->acceleration = glm::vec3(0.0f, 0.0f, 0.0f);
+  state.player->speed = 1.5f;
+  state.player->entityType = PLAYER;
+  state.player->velocity.y = -1.0f;
 
-  //create objects
-  Robot *robot = new Robot(-3.2f, -2.0f, robotTex.getTextureID());
-  objs->push_back(robot);
-  Robot *robot2 = new Robot(1.2f, 2.0f, robotTex.getTextureID());
-  objs->push_back(robot2);
 
-  Meteor *meteor = new Meteor(1.0f, -1.6f, meteorTex.getTextureID());
-  objs->push_back(meteor);
-  Meteor *meteor2 = new Meteor(-1.0f, 1.6f, meteorTex.getTextureID());
-  objs->push_back(meteor2);
+  SHIP_TEXTURES[0] = LoadTexture("blue_ship.png");
+  SHIP_TEXTURES[1] = LoadTexture("red_ship.png");
+  SHIP_TEXTURES[2] = LoadTexture("green_ship.png");
+  state.player->textureID = SHIP_TEXTURES[0];
+  
+  state.player->height = 1.0f;
+  state.player->width = 1.0f;
+
+  state.player->jumpPower = 5.0f;
+
+  fontTexID = new GLuint(LoadTexture("font.png"));
+
+  state.platforms = new Entity[PLATFORM_COUNT];
+
+  GLuint winPlatformTexID = LoadTexture("win_tile.png");
+  GLuint losePlatformTexID = LoadTexture("lose_tile.png");
+
+  //floor
+  state.platforms[0].textureID = losePlatformTexID;
+  state.platforms[0].position = glm::vec3(-4.5f, -3.25f, 0.0f);
+  state.platforms[0].entityType = LOSE_PLATFORM;
+
+  state.platforms[1].textureID = winPlatformTexID;
+  state.platforms[1].position = glm::vec3(-3.5f, -3.25f, 0.0f);
+  state.platforms[1].entityType = WIN_PLATFORM;
+
+  state.platforms[2].textureID = losePlatformTexID;
+  state.platforms[2].position = glm::vec3(-2.5f, -3.25f, 0.0f);
+  state.platforms[2].entityType = LOSE_PLATFORM;
+  
+  state.platforms[3].textureID = losePlatformTexID;
+  state.platforms[3].position = glm::vec3(-1.5f, -3.25f, 0.0f);
+  state.platforms[3].entityType = LOSE_PLATFORM;
+
+  state.platforms[4].textureID = losePlatformTexID;
+  state.platforms[4].position = glm::vec3(-0.5f, -3.25f, 0.0f);
+  state.platforms[4].entityType = LOSE_PLATFORM;
+
+  state.platforms[5].textureID = losePlatformTexID;
+  state.platforms[5].position = glm::vec3(0.5f, -3.25f, 0.0f);
+  state.platforms[5].entityType = LOSE_PLATFORM;
+
+  state.platforms[6].textureID = losePlatformTexID;
+  state.platforms[6].position = glm::vec3(1.5f, -3.25f, 0.0f);
+  state.platforms[6].entityType = LOSE_PLATFORM;
+
+  state.platforms[7].textureID = losePlatformTexID;
+  state.platforms[7].position = glm::vec3(2.5f, -3.25f, 0.0f);
+  state.platforms[7].entityType = LOSE_PLATFORM;
+
+  state.platforms[8].textureID = losePlatformTexID;
+  state.platforms[8].position = glm::vec3(3.5f, -3.25f, 0.0f);
+  state.platforms[8].entityType = LOSE_PLATFORM;
+
+  state.platforms[9].textureID = losePlatformTexID;
+  state.platforms[9].position = glm::vec3(4.5f, -3.25f, 0.0f);
+  state.platforms[9].entityType = LOSE_PLATFORM;
+  
+  //left wall
+  state.platforms[10].textureID = losePlatformTexID;
+  state.platforms[10].position = glm::vec3(-4.5f, -2.25f, 0.0f);
+  state.platforms[10].entityType = LOSE_PLATFORM;
+
+  state.platforms[11].textureID = losePlatformTexID;
+  state.platforms[11].position = glm::vec3(-4.5f, -1.25f, 0.0f);
+  state.platforms[11].entityType = LOSE_PLATFORM;
+  
+  state.platforms[12].textureID = losePlatformTexID;
+  state.platforms[12].position = glm::vec3(-4.5f, -0.25f, 0.0f);
+  state.platforms[12].entityType = LOSE_PLATFORM;
+
+  state.platforms[13].textureID = losePlatformTexID;
+  state.platforms[13].position = glm::vec3(-4.5f, 0.25f, 0.0f);
+  state.platforms[13].entityType = LOSE_PLATFORM;
+  
+  state.platforms[14].textureID = losePlatformTexID;
+  state.platforms[14].position = glm::vec3(-4.5f, 1.25f, 0.0f);
+  state.platforms[14].entityType = LOSE_PLATFORM;
+
+  state.platforms[15].textureID = losePlatformTexID;
+  state.platforms[15].position = glm::vec3(-4.5f, 2.25f, 0.0f);
+  state.platforms[15].entityType = LOSE_PLATFORM;
+
+  state.platforms[16].textureID = losePlatformTexID;
+  state.platforms[16].position = glm::vec3(-4.5f, 3.25f, 0.0f);
+  state.platforms[16].entityType = LOSE_PLATFORM;
+
+  //right wall
+  state.platforms[17].textureID = losePlatformTexID;
+  state.platforms[17].position = glm::vec3(4.5f, -2.25f, 0.0f);
+  state.platforms[17].entityType = LOSE_PLATFORM;
+
+  state.platforms[18].textureID = losePlatformTexID;
+  state.platforms[18].position = glm::vec3(4.5f, -1.25f, 0.0f);
+  state.platforms[18].entityType = LOSE_PLATFORM;
+  
+  state.platforms[19].textureID = losePlatformTexID;
+  state.platforms[19].position = glm::vec3(4.5f, -0.25f, 0.0f);
+  state.platforms[19].entityType = LOSE_PLATFORM;
+
+  state.platforms[20].textureID = losePlatformTexID;
+  state.platforms[20].position = glm::vec3(4.5f, 0.25f, 0.0f);
+  state.platforms[20].entityType = LOSE_PLATFORM;
+  
+  state.platforms[21].textureID = losePlatformTexID;
+  state.platforms[21].position = glm::vec3(4.5f, 1.25f, 0.0f);
+  state.platforms[21].entityType = LOSE_PLATFORM;
+
+  state.platforms[22].textureID = losePlatformTexID;
+  state.platforms[22].position = glm::vec3(4.5f, 2.25f, 0.0f);
+  state.platforms[22].entityType = LOSE_PLATFORM;
+
+  state.platforms[23].textureID = losePlatformTexID;
+  state.platforms[23].position = glm::vec3(4.5f, 3.25f, 0.0f);
+  state.platforms[23].entityType = LOSE_PLATFORM;
+
+  //obstacles
+  state.platforms[24].textureID = losePlatformTexID;
+  state.platforms[24].position = glm::vec3(-2.5f, -0.25f, 0.0f);
+  state.platforms[24].entityType = LOSE_PLATFORM;
+
+  state.platforms[25].textureID = losePlatformTexID;
+  state.platforms[25].position = glm::vec3(-3.5f, -0.25f, 0.0f);
+  state.platforms[25].entityType = LOSE_PLATFORM;
+  
+  for (int i = 0; i < PLATFORM_COUNT; i++) {
+    state.platforms[i].Update(0, NULL, 0);
+  }
+  
 
 }
 
-glm::vec3 player_pos = glm::vec3(0,0,0); //curr pos
-glm::vec3 player_mov = glm::vec3(0,0,0); //intended movement
 void ProcessInput() {
-  player_movement = glm:vec3(0,0,0);
-  //joystick events: SDL_JOYAXISMOTION, SLD_JOYBUTTONDOWN, SDL_JOYBUTTONUP
   SDL_Event event;
-  while(SDL_pollevent(&event)) {
-    switch (event.type) {
-      case(SDL_QUIT):
-      case(SDL_WINDOWEVENT_CLOSE):
-        gameIsRunning = false;
-        break;
-      case(SDL_KEYDOWN):
-        //key was pressed, which one?
-        switch(event.key.keysym.sym) {
-          case SDLK_RIGHT:
-            break;
-          case SDLK_LEFT:
+  switch(mode) {
+    case WIN:
+    case LOSE:
+      while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+          case SDL_QUIT:
+          case SDL_WINDOWEVENT_CLOSE:
+            gameIsRunning = false;
             break;
         }
-        break;
-      case(SDL_MOUSEMOTION):
-        // event.motion.x //x pos in pixels (not world coords!)
-        // event.motion.y //y pos in pixels
+      }
+      break;
+    case PLAYING:
+      state.player->movement = glm::vec3(0);
+      
+      while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+          case SDL_QUIT:
+          case SDL_WINDOWEVENT_CLOSE:
+            gameIsRunning = false;
+            break;
+            
+          case SDL_KEYDOWN:
+            switch (event.key.keysym.sym) {
+              case SDLK_LEFT:
+                // Move the player left
+                break;
+                
+              case SDLK_RIGHT:
+                // Move the player right
+                break;
+                
+              case SDLK_SPACE:
+                if (state.player->collidedBottom) {
+                  state.player->jump = true;
+                }
+                break;
+              }
+            break; // SDL_KEYDOWN
+        }
+      }
+      
+      const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
-        //convert mouse x, y to world x, y
-        // unit_x = ((x/width) * other_width) - (ortho_width / 2.0);
-        // unit_y = ((height-y) / height) * ortho_height - (ortho_height / 2.0);
-        break;
-      case (SDL_MOUSEBUTTONDOWN):
-        // event.button.x // x pos in pixels
-        // event.button.y // y pos in pixels
-        // event.button.button // button that was pressed (1, 2, 3)
-        break;
-    }
-  }
-  const Uint8 *keys = SDL_GetKeyboardState(NULL);
+      if (keys[SDL_SCANCODE_LEFT]) {
+        state.player->movement.x = -1.0f;
+      }
+      else if (keys[SDL_SCANCODE_RIGHT]) {
+        state.player->movement.x = 1.0f;
+      }
+      
 
-  if(keys[SDL_SCANCODE_LEFT]) {
-    player_movement.x = -1.0f;
-  } else if(keys[SDL_SCANCODE_RIGHT]) {
-    player_movement.x = 1.0f;
+      if (glm::length(state.player->movement) > 1.0f) {
+        state.player->movement = glm::normalize(state.player->movement);
+      }
+      break;
   }
-  if(keys[SDL_SCANCODE_UP]) {
-    player_movement.y = 1.0f;
-  } else if(keys[SDL_SCANCODE_DOWN]) {
-    player_movement.y = -1.0f;
-  }
-  if (glm::length(player_movement) > 1.0f) {
-    player_movement = glm::normalize(player_movement);
-  }
-  //poll mouse
-  int x, y; //window coords not world coords
-  SDL_GetMouseSTate(&x, &y);
 }
 
-void Update(std::vector<Object*> *objs) {
-  float deltaTime = getDeltaTime();
-  for (int i = 0; i < objs->size(); i++) {
-    ((*objs)[i])->update(deltaTime);
+#define FIXED_TIMESTEP 0.0166666f
+float lastTicks = 0;
+float accumulator = 0.0f;
+
+void Update() {
+  float ticks = (float)SDL_GetTicks() / 1000.0f;
+  float deltaTime = ticks - lastTicks;
+  lastTicks = ticks;
+
+  switch (mode) {
+    case WIN:
+    case LOSE:
+      break;
+    case PLAYING:
+      deltaTime += accumulator;
+
+      if (deltaTime < FIXED_TIMESTEP) { accumulator = deltaTime; return; }
+
+      // Update using fixed time step
+      while (deltaTime >= FIXED_TIMESTEP) {
+        //if bottom collision update and check if collided with win or lose platform
+        if (state.player->collidedBottom) {
+          state.player->Update(FIXED_TIMESTEP, state.platforms, PLATFORM_COUNT);
+          if (state.player->lastCollision == WIN_PLATFORM) {
+            mode = WIN;
+          } else {
+            mode = LOSE;
+          }
+        } else {
+          state.player->Update(FIXED_TIMESTEP, state.platforms, PLATFORM_COUNT);
+        }
+        deltaTime -= FIXED_TIMESTEP;
+      }
+      accumulator = deltaTime;
+      break;
   }
-  player_pos += playermovement & player_speed * deltaTime;
+
 }
 
-void Render(std::vector<Object*> *objs) {
-  float vertices[] = { -0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f };
-  float textCoords[] = {0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f };
-
+void Render() {
   glClear(GL_COLOR_BUFFER_BIT);
 
-  glVertexAttribPointer(program.positionAttribute, 2, GL_FLOAT, false, 0, vertices);
-  glEnableVertexAttribArray(program.positionAttribute);
-  glVertexAttribPointer(program.texCoordAttribute, 2, GL_FLOAT, false, 0, textCoords);
-  glEnableVertexAttribArray(program.texCoordAttribute);
-
-  //draw objects
-  for (int i = 0; i < objs->size(); i++) {
-    ((*objs)[i])->draw();
+  switch (mode) {
+    case WIN:
+      DrawText(&program, *fontTexID, "GREAT SUCCESS!!", 0.5f, -0.25f, glm::vec3(-2.0f, 1.0f, 0.0f));
+      state.player->textureID = SHIP_TEXTURES[2];
+      break;
+    case LOSE:
+      DrawText(&program, *fontTexID, "MISSION FAILED", 0.5f, -0.25f, glm::vec3(-2.0f, 1.0f, 0.0f));
+      state.player->textureID = SHIP_TEXTURES[1];
+      break;
   }
 
-  glDisableVertexAttribArray(program.positionAttribute);
-  glDisableVertexAttribArray(program.texCoordAttribute);
+  for (int i = 0; i < PLATFORM_COUNT; i++) {
+    state.platforms[i].Render(&program);
+  }
+
+  state.player->Render(&program);
   
   SDL_GL_SwapWindow(displayWindow);
 }
 
-void Shutdown(std::vector<Object*> *objs) {
-  SDL_JoystickClose(playerOneController);
-  for (int i = 0; i < objs->size(); i++) {
-    free((*objs)[i]);
-  }
+
+void Shutdown() {
   SDL_Quit();
 }
 
 int main(int argc, char* argv[]) {
-  std::vector<Object*> objs;
-  Initialize(&objs);
+  Initialize();
   
   while (gameIsRunning) {
-      ProcessInput();
-      Update(&objs);
-      Render(&objs);
+    ProcessInput();
+    Update();
+    Render();
   }
   
-  Shutdown(&objs);
+  Shutdown();
   return 0;
 }
-
-float getDeltaTime() {
-  static float lastTicks = 0;
-  float ticks = (float)SDL_GetTicks() / 1000.0f;
-  float deltaTime = ticks - lastTicks;
-  lastTicks = ticks;
-  return deltaTime;
-}
-
-Object::Object(float x, float y, GLuint textureID)
-       : x(x), y(y), textureID(textureID)
-{
-  //set model matrix to initial x and y
-  modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f));
-}
-
-void Object::draw() {
-  program.SetModelMatrix(modelMatrix);
-  glBindTexture(GL_TEXTURE_2D, textureID);
-  glDrawArrays(GL_TRIANGLES, 0, 6);
-}
-
-float Object::getX() { return x; }
-float Object::getY() { return y; }
-
-Robot::Robot(float x, float y, GLuint textureID)
-      : Object(x, y, textureID) { dir = 1.0f; dist = 0.0f; }
-
-void Robot::update(float deltaTime) {
-  if (std::fabs(dist) > 1.0f) {
-    dir *= -1.0f;
-    dist = 0;
-  }
-  x += dir * deltaTime;
-  dist += dir * deltaTime;
-
-  modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f));
-}
-
-Meteor::Meteor(float x, float y, GLuint textureID)
-      : Object(x, y, textureID) { float size = 2.0f; float inc = 0.0f; }
-
-void Meteor::update(float deltaTime) {
-  //modelMatrix = glm::mat4(1.0f);
-  float ang = 90 * deltaTime;
-  modelMatrix = glm::rotate(modelMatrix, glm::radians(ang), glm::vec3(0.0f, 0.0f, 1.0f));
-
-  if (inc > 0.5) {
-    size = -0.2; //rate of changing size
-    inc = 0.0f;
-  } else if (inc < -0.5f) {
-   size = 0.2f; 
-   inc = 0.0f;
-  }
-  inc += deltaTime * size;
-  float grow = 1.0f + deltaTime*size;
-  modelMatrix = glm::scale(modelMatrix, glm::vec3(grow, grow, 1.0f));
-}
-
-Texture::Texture(const char *filePath) {
-  textureID = LoadTexture(filePath);
-}
-
-GLuint Texture::LoadTexture(const char* filePath) {
-  int w, h, n;
-  unsigned char* image = stbi_load(filePath, &w, &h, &n, STBI_rgb_alpha);
-  
-  if (image == NULL) {
-    std::cout << "Unable to load image. Make sure the path is correct\n";
-    assert(false);
-  }
-
-  //init texture id
-  GLuint textureID;
-  glGenTextures(1, &textureID);
-
-  //bind texture to id
-  glBindTexture(GL_TEXTURE_2D, textureID);
-
-  //set texture pixel data & send image over to graphics card
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
-
-  //Texture Filtering settings
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-  //free image from ram now that its in graphics card ram
-  stbi_image_free(image);
-
-  //return id
-  return textureID;
-}
-
-GLuint Texture::getTextureID() { return textureID; }
 

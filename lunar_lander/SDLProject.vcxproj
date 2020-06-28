@@ -127,11 +127,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Entity.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ShaderProgram.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Entity.h" />
     <ClInclude Include="ShaderProgram.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="blue_ship.png" />
+    <Image Include="font.png" />
+    <Image Include="green_ship.png" />
+    <Image Include="lose_tile.png" />
+    <Image Include="red_ship.png" />
+    <Image Include="win_tile.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

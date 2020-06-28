@@ -21,10 +21,36 @@
     <ClCompile Include="ShaderProgram.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Entity.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ShaderProgram.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Entity.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="green_ship.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="blue_ship.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="red_ship.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="lose_tile.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="win_tile.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="font.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
