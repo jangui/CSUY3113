@@ -1,0 +1,8 @@
+﻿  Entity.cpp
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\rise_of_ai\Entity.h(35,18): warning C4244: 'initializing': conversion from 'float' to 'int', possible loss of data
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\rise_of_ai\Entity.cpp(151,16): warning C4244: '=': conversion from 'float' to 'int', possible loss of data
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\rise_of_ai\Entity.cpp(159,18): warning C4244: '=': conversion from 'float' to 'int', possible loss of data
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\rise_of_ai\Entity.cpp(204,16): warning C4244: '=': conversion from 'float' to 'int', possible loss of data
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\rise_of_ai\Entity.cpp(208,18): warning C4244: '=': conversion from 'float' to 'int', possible loss of data
+C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\rise_of_ai\Entity.cpp(272,16): warning C4244: '=': conversion from 'float' to 'int', possible loss of data
+  SDLProject.vcxproj -> C:\Users\Jaime\Dropbox\NYU\S6.5\GameDev\projects\rise_of_ai\Debug\SDLProject.exe
